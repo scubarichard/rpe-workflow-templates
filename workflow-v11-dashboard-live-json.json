@@ -1,0 +1,59 @@
+{
+  "name": "{{client_name}} - v11 Dashboard Live JSON",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "{{slug}}-v11",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {"name": "Access-Control-Allow-Origin", "value": "*"},
+              {"name": "Access-Control-Allow-Headers", "value": "Content-Type"}
+            ]
+          }
+        }
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "webhookId": "{{slug}}-v11"
+    },
+    {
+      "parameters": {
+        "jsCode": "const SHEET_ID = '{{sheet_id}}';\nconst SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Raw_Jobs`;\n\ntry {\n  const resp = await fetch(SHEET_URL);\n  const text = await resp.text();\n  // Strip Google's prefix/suffix\n  const jsonStr = text.replace(/^[^{]*/, '').replace(/[^}]*$/, '');\n  const data = JSON.parse(jsonStr);\n  const cols = data.table.cols.map(c => c.label);\n  const jobs = data.table.rows.map(row => {\n    const obj = {};\n    row.c.forEach((cell, i) => {\n      if (cols[i]) obj[cols[i]] = cell ? (cell.v || '') : '';\n    });\n    return obj;\n  });\n  return [{ json: { jobs, updated: new Date().toISOString(), source: 'google_sheets' } }];\n} catch(e) {\n  return [{ json: { jobs: [], error: e.message } }];\n}\n"
+      },
+      "id": "read-sheet",
+      "name": "Read Sheet Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [660, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Read Sheet Data", "type": "main", "index": 0}]]
+    },
+    "Read Sheet Data": {
+      "main": [[{"node": "Respond", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionTimeout": 30
+  }
+}
